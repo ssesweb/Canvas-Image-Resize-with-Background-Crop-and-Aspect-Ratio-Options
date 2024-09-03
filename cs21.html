@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas Image Resize with Background, Crop, and Aspect Ratio Options</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+            overflow: hidden;
+        }
+
+        #drop-area {
+            width: 80%;
+            max-width: 1000px;
+            max-height: 80vh;
+            border: 2px dashed #bbb;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            font-size: 18px;
+            color: #666;
+            margin-bottom: 20px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        #canvas {
+            width: 100%;
+            height: 100%;
+            border: 1px solid #ccc;
+        }
+
+        #options-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 20px;
+            z-index: 10;
+        }
+
+        #aspect-ratio-options, #background-options, #crop-options, #resolution-options {
+            margin-bottom: 10px;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="drop-area">
+        拖拽图片到此区域
+        <canvas id="canvas"></canvas>
+    </div>
+
+    <!-- 选项 -->
+    <div id="options-container">
+        <div id="background-options">
+            <label>
+                <input type="radio" name="background" value="transparent" checked> 透明背景
+            </label>
+            <label>
+                <input type="radio" name="background" value="white"> 白色背景
+            </label>
+            <label>
+                <input type="radio" name="background" value="black"> 黑色背景
+            </label>
+        </div>
+
+        <div id="crop-options">
+            <label>
+                <input type="radio" name="crop" value="fit" checked> 整体缩小至画布内（默认）
+            </label>
+            <label>
+                <input type="radio" name="crop" value="crop-long"> 基于长边裁剪
+            </label>
+            <label>
+                <input type="radio" name="crop" value="crop-short"> 基于短边裁剪
+            </label>
+        </div>
+
+        <div id="aspect-ratio-options">
+            <label>
+                <input type="radio" name="aspect-ratio" value="1:1" checked> 1:1
+            </label>
+            <label>
+                <input type="radio" name="aspect-ratio" value="3:4"> 3:4
+            </label>
+            <label>
+                <input type="radio" name="aspect-ratio" value="4:3"> 4:3
+            </label>
+        </div>
+
+        <div id="resolution-options">
+            <label>输出长边分辨率：</label>
+            <select id="resolution-select">
+                <option value="original" selected>原图像长边分辨率</option>
+                <option value="1920">1920 px</option>
+                <option value="1000">1000 px</option>
+                <option value="500">500 px</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- 按钮 -->
+    <button id="copy-button">复制到剪贴板</button>
+    <button id="download-button">下载至本地</button>
+
+    <script>
+        const dropArea = document.getElementById('drop-area');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const copyButton = document.getElementById('copy-button');
+        const downloadButton = document.getElementById('download-button');
+        const backgroundOptions = document.querySelectorAll('input[name="background"]');
+        const cropOptions = document.querySelectorAll('input[name="crop"]');
+        const aspectRatioOptions = document.querySelectorAll('input[name="aspect-ratio"]');
+        const resolutionSelect = document.getElementById('resolution-select');
+
+        let selectedBackground = 'transparent';
+        let selectedCrop = 'fit';
+        let selectedAspectRatio = '1:1';
+        let selectedResolution = 'original';
+        let currentImage = null;
+
+        function resizeCanvas() {
+            const aspectRatio = getAspectRatio(selectedAspectRatio);
+            const width = dropArea.clientWidth;
+            const height = width / aspectRatio;
+
+            canvas.width = width;
+            canvas.height = height;
+            if (currentImage) {
+                drawImageOnCanvas(currentImage);
+            }
+        }
+
+        function getAspectRatio(ratio) {
+            const [w, h] = ratio.split(':').map(Number);
+            return w / h;
+        }
+
+        backgroundOptions.forEach(option => {
+            option.addEventListener('change', () => {
+                selectedBackground = option.value;
+                if (currentImage) {
+                    drawImageOnCanvas(currentImage);
+                }
+            });
+        });
+
+        cropOptions.forEach(option => {
+            option.addEventListener('change', () => {
+                selectedCrop = option.value;
+                if (currentImage) {
+                    drawImageOnCanvas(currentImage);
+                }
+            });
+        });
+
+        aspectRatioOptions.forEach(option => {
+            option.addEventListener('change', () => {
+                selectedAspectRatio = option.value;
+                resizeCanvas();
+            });
+        });
+
+        resolutionSelect.addEventListener('change', () => {
+            selectedResolution = resolutionSelect.value;
+            if (currentImage) {
+                drawImageOnCanvas(currentImage);
+            }
+        });
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, preventDefaults, false);
+        });
+
+        function preventDefaults(e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => {
+                dropArea.style.backgroundColor = '#ddd';
+            }, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropArea.addEventListener(eventName, () => {
+                dropArea.style.backgroundColor = '#f0f0f0';
+            }, false);
+        });
+
+        dropArea.addEventListener('drop', handleDrop, false);
+
+        function handleDrop(e) {
+            let dt = e.dataTransfer;
+            let files = dt.files;
+            handleFiles(files);
+        }
+
+        function handleFiles(files) {
+            const file = files[0];
+            const reader = new FileReader();
+
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    currentImage = img;
+                    drawImageOnCanvas(img);
+                }
+                img.src = event.target.result;
+            }
+
+            reader.readAsDataURL(file);
+        }
+
+        function drawImageOnCanvas(img) {
+            const aspectRatio = getAspectRatio(selectedAspectRatio);
+            let canvasWidth = canvas.width;
+            let canvasHeight = canvas.height;
+
+            if (selectedResolution !== 'original') {
+                const resolution = parseInt(selectedResolution, 10);
+                if (img.width > img.height) {
+                    canvasWidth = resolution;
+                    canvasHeight = resolution / aspectRatio;
+                } else {
+                    canvasHeight = resolution;
+                    canvasWidth = resolution * aspectRatio;
+                }
+            } else {
+                if (img.width > img.height) {
+                    canvasWidth = img.width;
+                    canvasHeight = img.width / aspectRatio;
+                } else {
+                    canvasHeight = img.height;
+                    canvasWidth = img.height * aspectRatio;
+                }
+            }
+
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+
+            if (selectedBackground === 'white') {
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+            } else if (selectedBackground === 'black') {
+                ctx.fillStyle = 'black';
+                ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+            } else {
+                ctx.clearRect(0, 0, canvasWidth, canvasHeight);
+            }
+
+            let sx = 0, sy = 0, sw = img.width, sh = img.height;
+            let dx = 0, dy = 0, dw = canvasWidth, dh = canvasHeight;
+
+            if (selectedCrop === 'fit') {
+                const imgAspectRatio = img.width / img.height;
+                if (imgAspectRatio > aspectRatio) {
+                    dw = canvasWidth;
+                    dh = (img.height / img.width) * canvasWidth;
+                } else {
+                    dh = canvasHeight;
+                    dw = (img.width / img.height) * canvasHeight;
+                }
+                dx = (canvasWidth - dw) / 2;
+                dy = (canvasHeight - dh) / 2;
+            } else if (selectedCrop === 'crop-long') {
+                if (img.width > img.height) {
+                    sw = sh = img.height;
+                    sx = (img.width - img.height) / 2;
+                } else {
+                    sw = sh = img.width;
+                    sy = (img.height - img.width) / 2;
+                }
+            } else if (selectedCrop === 'crop-short') {
+                if (img.width > img.height) {
+                    sw = img.width;
+                    sh = img.width * aspectRatio;
+                    sy = (img.height - sh) / 2;
+                } else {
+                    sh = img.height;
+                    sw = img.height / aspectRatio;
+                    sx = (img.width - sw) / 2;
+                }
+            }
+
+            ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
+        }
+
+        copyButton.addEventListener('click', () => {
+            canvas.toBlob(blob => {
+                navigator.clipboard.write([new ClipboardItem({'image/png': blob})]);
+            });
+        });
+
+        downloadButton.addEventListener('click', () => {
+            canvas.toBlob(blob => {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'image.png';
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+        });
+
+        // 初始调用以设置画布尺寸
+        resizeCanvas();
+
+        // 监听窗口大小调整事件
+        window.addEventListener('resize', resizeCanvas);
+    </script>
+</body>
+</html>
