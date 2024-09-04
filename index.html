@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Canvas Image Resize with Background, Crop, and Aspect Ratio Options</title>
+    <title>Canvas Image Resize with Background, Crop, Aspect Ratio, and File Type Options</title>
     <style>
         body {
             display: flex;
@@ -47,7 +47,7 @@
             z-index: 10;
         }
 
-        #aspect-ratio-options, #background-options, #crop-options, #resolution-options {
+        #aspect-ratio-options, #background-options, #crop-options, #resolution-options, #file-type-options {
             margin-bottom: 10px;
         }
 
@@ -112,6 +112,15 @@
                 <option value="500">500 px</option>
             </select>
         </div>
+
+        <div id="file-type-options">
+            <label>文件类型：</label>
+            <select id="file-type-select">
+                <option value="webp" selected>WebP</option>
+                <option value="png">PNG</option>
+                <option value="jpg">JPG</option>
+            </select>
+        </div>
     </div>
 
     <!-- 按钮 -->
@@ -128,11 +137,13 @@
         const cropOptions = document.querySelectorAll('input[name="crop"]');
         const aspectRatioOptions = document.querySelectorAll('input[name="aspect-ratio"]');
         const resolutionSelect = document.getElementById('resolution-select');
+        const fileTypeSelect = document.getElementById('file-type-select');
 
         let selectedBackground = 'transparent';
         let selectedCrop = 'fit';
         let selectedAspectRatio = '1:1';
         let selectedResolution = 'original';
+        let selectedFileType = 'webp';
         let currentImage = null;
 
         function resizeCanvas() {
@@ -182,6 +193,10 @@
             if (currentImage) {
                 drawImageOnCanvas(currentImage);
             }
+        });
+
+        fileTypeSelect.addEventListener('change', () => {
+            selectedFileType = fileTypeSelect.value;
         });
 
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
@@ -266,41 +281,47 @@
                 ctx.clearRect(0, 0, canvasWidth, canvasHeight);
             }
 
-            let sx = 0, sy = 0, sw = img.width, sh = img.height;
-            let dx = 0, dy = 0, dw = canvasWidth, dh = canvasHeight;
+            let sx, sy, sw, sh, dx, dy, dw, dh;
 
             if (selectedCrop === 'fit') {
                 const imgAspectRatio = img.width / img.height;
-                if (imgAspectRatio > aspectRatio) {
-                    dw = canvasWidth;
-                    dh = (img.height / img.width) * canvasWidth;
-                } else {
+                if (canvasWidth / canvasHeight > imgAspectRatio) {
+                    dw = canvasHeight * imgAspectRatio;
                     dh = canvasHeight;
-                    dw = (img.width / img.height) * canvasHeight;
+                    dx = (canvasWidth - dw) / 2;
+                    dy = 0;
+                } else {
+                    dw = canvasWidth;
+                    dh = canvasWidth / imgAspectRatio;
+                    dx = 0;
+                    dy = (canvasHeight - dh) / 2;
                 }
-                dx = (canvasWidth - dw) / 2;
-                dy = (canvasHeight - dh) / 2;
+                ctx.drawImage(img, 0, 0, img.width, img.height, dx, dy, dw, dh);
             } else if (selectedCrop === 'crop-long') {
                 if (img.width > img.height) {
                     sw = sh = img.height;
                     sx = (img.width - img.height) / 2;
+                    sy = 0;
                 } else {
                     sw = sh = img.width;
+                    sx = 0;
                     sy = (img.height - img.width) / 2;
                 }
+                ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvasWidth, canvasHeight);
             } else if (selectedCrop === 'crop-short') {
                 if (img.width > img.height) {
                     sw = img.width;
-                    sh = img.width * aspectRatio;
+                    sh = img.width / aspectRatio;
+                    sx = 0;
                     sy = (img.height - sh) / 2;
                 } else {
                     sh = img.height;
-                    sw = img.height / aspectRatio;
+                    sw = img.height * aspectRatio;
                     sx = (img.width - sw) / 2;
+                    sy = 0;
                 }
+                ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvasWidth, canvasHeight);
             }
-
-            ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
         }
 
         copyButton.addEventListener('click', () => {
@@ -314,16 +335,13 @@
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
-                a.download = 'image.png';
+                a.download = `image.${selectedFileType}`;
                 a.click();
                 URL.revokeObjectURL(url);
-            });
+            }, `image/${selectedFileType}`);
         });
 
-        // 初始调用以设置画布尺寸
         resizeCanvas();
-
-        // 监听窗口大小调整事件
         window.addEventListener('resize', resizeCanvas);
     </script>
 </body>
